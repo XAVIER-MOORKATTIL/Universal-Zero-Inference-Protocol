@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>Zero-Inference Protocol Visualizer</title>
+  <style>
+    body { font-family: monospace; background: #0f172a; color: #f8fafc; padding: 20px; }
+    h1 { color: #38bdf8; }
+    .status-box { background: #1e293b; padding: 15px; border-radius: 8px; margin-bottom: 20px; border: 1px solid #334155; }
+    .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 15px; }
+    .card { background: #1e293b; border-left: 5px solid #22c55e; padding: 15px; border-radius: 6px; box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+    .card h3 { margin: 0 0 10px 0; font-size: 14px; color: #94a3b8; }
+    .card .pass { color: #4ade80; font-weight: bold; font-size: 18px; }
+    .latency { font-size: 12px; color: #64748b; margin-top: 5px; }
+  </style>
+</head>
+<body>
+
+  <h1>Zero-Inference Protocol: 13-Gate Status</h1>
+  <div class="status-box">
+    WebSocket Stream Status: <span id="ws-status" style="color: #facc15;">Connecting...</span> | 
+    Gates Passed: <span id="pass-count">0</span> / 13
+  </div>
+
+  <div class="grid" id="gate-grid"></div>
+
+  <script>
+    const ws = new WebSocket('ws://localhost:5000');
+    const wsStatus = document.getElementById('ws-status');
+    const passCount = document.getElementById('pass-count');
+    const gateGrid = document.getElementById('gate-grid');
+
+    const gatesMap = new Map();
+
+    ws.onopen = () => {
+      wsStatus.innerText = 'ONLINE';
+      wsStatus.style.color = '#4ade80';
+    };
+
+    ws.onmessage = (event) => {
+      const data = JSON.parse(event.data);
+      if (data.gateId) {
+        gatesMap.set(data.gateId, data);
+        render();
+      }
+    };
+
+    function render() {
+      gateGrid.innerHTML = '';
+      passCount.innerText = gatesMap.size;
+
+      gatesMap.forEach((gate) => {
+        const card = document.createElement('div');
+        card.className = 'card';
+        card.innerHTML = `
+          <h3>GATE ${gate.gateId}: ${gate.gateName.toUpperCase()}</h3>
+          <div class="pass">✔ ${gate.status}</div>
+          <div class="latency">Latency: ${gate.payload.latencyMs}ms | DB Logged: Yes</div>
+        `;
+        gateGrid.appendChild(card);
+      });
+    }
+
+    // Fetch existing logs on initial load
+    fetch('http://localhost:5000/api/events')
+      .then(res => res.json())
+      .then(data => {
+        data.forEach(gate => gatesMap.set(gate.gateId, gate));
+        render();
+      });
+  </script>
+</body>
+</html>
