@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Zero-Inference Protocol Visualizer</title>
   <style>
     body { font-family: monospace; background: #0f172a; color: #f8fafc; padding: 20px; }
@@ -25,7 +26,15 @@
   <div class="grid" id="gate-grid"></div>
 
   <script>
-    const ws = new WebSocket('ws://localhost:5000');
+    const PRODUCTION_URL = 'zero-inference-backend.onrender.com';
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    
+    // Automatically uses production URL, falls back to localhost if running locally
+    const isLocal = window.location.hostname === 'localhost' || window.location.hostname === '127.0.0.1';
+    const wsEndpoint = isLocal ? 'ws://localhost:5000' : `${protocol}//${PRODUCTION_URL}`;
+    const apiEndpoint = isLocal ? 'http://localhost:5000' : `https://${PRODUCTION_URL}`;
+
+    const ws = new WebSocket(wsEndpoint);
     const wsStatus = document.getElementById('ws-status');
     const passCount = document.getElementById('pass-count');
     const gateGrid = document.getElementById('gate-grid');
@@ -35,6 +44,11 @@
     ws.onopen = () => {
       wsStatus.innerText = 'ONLINE';
       wsStatus.style.color = '#4ade80';
+    };
+
+    ws.onerror = (err) => {
+      wsStatus.innerText = 'DISCONNECTED / COLD START';
+      wsStatus.style.color = '#ef4444';
     };
 
     ws.onmessage = (event) => {
@@ -61,13 +75,16 @@
       });
     }
 
-    // Fetch existing logs on initial load
-    fetch('http://localhost:5000/api/events')
+    // Load initial logs on startup
+    fetch(`${apiEndpoint}/api/events`)
       .then(res => res.json())
       .then(data => {
-        data.forEach(gate => gatesMap.set(gate.gateId, gate));
-        render();
-      });
+        if (Array.isArray(data)) {
+          data.forEach(gate => gatesMap.set(gate.gateId, gate));
+          render();
+        }
+      })
+      .catch(err => console.error('Error fetching logs:', err));
   </script>
 </body>
 </html>
